@@ -6,6 +6,7 @@ require_relative "lib/credits_parser"
 require_relative "lib/genres_parser"
 require_relative "lib/keywords_parser"
 require_relative "lib/technical_parser"
+require_relative "lib/ratings_parser"
 require_relative "lib/csv_exporter"
 
 def download(file_name)
@@ -62,6 +63,8 @@ def export_to_csv(table_name)
     CSVExporter.new(table_name, "title", "location", "comment").call
   when "movies"
     CSVExporter.new(table_name, "title", "date").call
+  when "ratings"
+    CSVExporter.new(table_name, "new", "distribution", "votes", "rank", "title", parser: RatingsParser).call
   when "release-dates"
     CSVExporter.new(table_name, "title", "release date", "comment").call
   when "running-times"
