@@ -1,9 +1,10 @@
 require "pathname"
 require "csv"
 require_relative "lib/imdb_parser"
-require_relative "lib/genres_parser"
 require_relative "lib/companies_parser"
 require_relative "lib/credits_parser"
+require_relative "lib/genres_parser"
+require_relative "lib/keywords_parser"
 require_relative "lib/technical_parser"
 require_relative "lib/csv_exporter"
 
@@ -47,12 +48,14 @@ def export_to_csv(table_name)
     CSVExporter.new(table_name, "title", "complete cast").call
   when "complete-crew"
     CSVExporter.new(table_name, "title", "complete crew").call
-  when "coutries"
+  when "countries"
     CSVExporter.new(table_name, "title", "country").call
   when "distributors"
     CSVExporter.new(table_name, "title", "distributor", "distribution scope").call
   when "genres"
     CSVExporter.new(table_name, "title", "genre", parser: GenresParser).call
+  when "keywords"
+    CSVExporter.new(table_name, "title", "keyword", parser: KeywordsParser).call
   when "language"
     CSVExporter.new(table_name, "title", "language", "comment").call
   when "locations"
