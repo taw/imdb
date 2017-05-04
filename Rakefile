@@ -1,6 +1,81 @@
 require "pathname"
 require "csv"
 
+class ImdbParser
+  def initialize(path)
+    @path = path
+  end
+
+  def open
+    @path.open("r:iso-8859-1:utf-8") do |fh|
+      yield(fh)
+    end
+  end
+
+  def each_line
+    open do |fh|
+      fh.each_line do |line|
+        line.chomp!
+        next unless line =~ /\t/
+        yield(line)
+      end
+    end
+  end
+end
+
+class GenresParser < ImdbParser
+  def each_line
+    in_headers = true
+    open do |fh|
+      fh.each_line do |line|
+        line.chomp!
+        if in_headers
+          in_headers = false if line =~ /8: THE GENRES LIST/
+          next
+        end
+        next unless line =~ /\t/
+        yield(line)
+      end
+    end
+  end
+end
+
+class CSVExporter
+  def initialize(table_name, *headers, parser: ImdbParser)
+    @table_name = table_name
+    @headers = headers
+    @parser_class = parser
+  end
+
+  def input_path
+    Pathname("database/#{@table_name}.list")
+  end
+
+  def output_path
+    Pathname("csv/#{@table_name}.csv")
+  end
+
+  def input_parser
+    @parser_class.new(input_path)
+  end
+
+  def call
+    raise "No such file: #{input_path}" unless input_path.exist?
+    return if output_path.exist?
+    output_path.parent.mkpath
+    CSV.open(output_path.to_s, "wb") do |csv|
+      csv << @headers
+      input_parser.each_line do |line|
+        values = line.split(/\t+/)
+        if values.size > @headers.size
+          raise "Too many columns found - #{values.size} found, #{headers.size} expected"
+        end
+        csv << values
+      end
+    end
+  end
+end
+
 def download(file_name)
   Pathname("database").mkpath
   url = "ftp://ftp.fu-berlin.de/pub/misc/movies/database/#{file_name}"
@@ -27,32 +102,22 @@ def download_file_list
   download "filesizes"
 end
 
-def export_to_csv_generic(file_name, *headers)
-  input_path = Pathname("database/#{file_name}.list")
-  output_path = Pathname("csv/#{file_name}.csv")
-  output_path.parent.mkpath
-  raise "No such file: #{input_path}" unless input_path.exist?
-  return if output_path.exist?
-  input_path.open("r:iso-8859-1:utf-8") do |input_fh|
-    CSV.open(output_path.to_s, "wb") do |csv|
-      csv << headers
-      input_fh.each_line do |line|
-        line.chomp!
-        next unless line =~ /\t/
-        values = line.split(/\t+/)
-        if values.size > headers.size
-          raise "Too many columns found - #{values.size} found, #{headers.size} expected"
-        end
-        csv << values
-      end
-    end
-  end
-end
-
 def export_to_csv(table_name)
   case table_name
   when "language"
-    export_to_csv_generic(table_name, "title", "language", "comment")
+    CSVExporter.new(table_name, "title", "language", "comment").call
+  when "locations"
+    CSVExporter.new(table_name, "title", "location", "comment").call
+  when "genres"
+    CSVExporter.new(table_name, "title", "genre", parser: GenresParser).call
+  when "distributors"
+    CSVExporter.new(table_name, "title", "distributor", "distribution scope").call
+  when "complete-cast"
+    CSVExporter.new(table_name, "title", "complete cast").call
+  when "complete-crew"
+    CSVExporter.new(table_name, "title", "complete crew").call
+  when "miscellaneous-companies.list"
+    CSVExporter.new(table_name, "title", "company", "company role").call
   else
     warn "No idea how to import #{table_name}"
   end
